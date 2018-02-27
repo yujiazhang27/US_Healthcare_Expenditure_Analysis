@@ -1,0 +1,285 @@
+---
+title: "US Healthcare Expenditure Analysis"
+author: "Yujia Zhang"
+date: "Feburary 8, 2018"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+Healthcare is the maintainance an improvement in health through the provention, diagnosis and treatment of illness. By the year 2000, NHE accounted for 13.3 percent of GDP — just a 1.2 percent increase over the past decade. But in 2015, U.S. health care costs were $3.2 trillion. That makes health care one of the country's largest industries, equaling to 17.8 percent of gross domestic product. In this study, the US healthcare expenditure data from 1991 to 2014 will be studied. Patterns and features of the expenditures will be drawn, and future expenditure trend will also be studied. 
+
+***
+## Data Introduction 
+
+The personal health care expenditures by State of Residence (1991-2014) data files were released by the Centers for Medicare & Medicaid Services Office of the Actuary in June 2017. The data contain per capita personal health care spending by state and by service, in dollars from 1991 to 2014. Per capita personal health care spending is calculated by dividing aggregate spending by population. 
+
+The aggregated personal health care expenditures by the State of Residence are based on the State of Provider estimates adjusted for the flow of residents between states in order to consume health care services. These estimates present health spending on behalf of residents in the 50 States and in the District of Columbia. Sources of funding included out of pocket, private health insurance, Medicare, Medicaid, other third-party payer and programs, and etc (National Healthcare Expenditure (NHE), 2017).
+
+Ten medical service category were included: Personal Health, Hospital Care, Physician & Clinical Services, Prescription Drugs and Other Non-Durable Products, Nursing Home Care, Other Professional Services, Dental Services, Other Health, Residential, and Personal Care, Home Health Care and Durable Medical Products. (Sorted by average percentage of total healthcare expenditure per capita)
+
+Fifty states and D.C. were categorized into eight regions:
+
+* *Far West*: Alaska, California, Hawaii, Nevada, Oregon, and Washington (6)
+* *Great Lakes*: Illinois, Indiana, Michigan, Ohio, and Wisconsin (5)
+* *Mideast*: Delaware, District of Columbia, Maryland, New Jersey, New York, and Pennsylvania (6)
+* *New England*: Connecticut, Maine, Massachusetts, New Hampshire, Rhode Island, and Vermont (6)
+* *Plains*: Iowa, Kansas, Minnesoda, Missouri, Nebraska, North Dakota, and South Dakota (7)
+* *Rocky Mountains*: Colorado, Idaho, Montana, Utah, and Wyoming (5)
+* *Southeast*: Alabama, Arkansas, Florida, Georgia, Kentucky, Louisiana, Mississippi, North Carolina, South  Carolina, Tennessee, Virginia, and West Virginia (12)
+* *Southwest*: Arizona, New Mexico, Oklahoma, and Texas (4)
+
+***
+## Data Analysis
+
+To understanding the trend of healthcare expenditure, total healthcare expenditure per capita by region and the proportion of each category in total expenditure by region were studied. The total healthcare expenditure per capita is calculated by summing all categories by region. Since there is the overlap among those categories, the calculated total expenditure per capita is much higher than the actual healthcare expenditure per capita (8,045 US dollar in 2014). But the focus of this analysis, the trend of healthcare can still be reflected in the calculated healthcare expenditure per capita.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(dev = 'pdf')
+
+# Imports
+library(ggplot2)
+library(reshape2)
+library(scales)
+library(plyr)
+
+# Read file
+rawExpenditure <- read.csv('/Users/pollyzhang/Desktop/US_PER_CAPITA14.csv')
+
+rawExpenditure2 <- rawExpenditure[rawExpenditure[, "Group"] == "Region",]
+
+expenditure <- subset(rawExpenditure2, select=-c(Code, Group, Region_Number, State_Name, Average_Annual_Percent_Growth))
+```
+
+```{r function, echo=FALSE}
+# Function
+calculate_growth_rate <- function(df){
+  for (i in 2:ncol(df)){  # calculate the growth rate
+    growthRate <- c(0)
+    tempList = as.vector(df[i])
+    for (j in 1:nrow(tempList)-1){
+      rate = (tempList[j+1,]-tempList[j,])/tempList[j,]   # rate = (later-former)/former
+      growthRate <- c(growthRate, rate)
+    }
+    growthRate <- as.data.frame(growthRate)
+    df[i] <- growthRate
+  }
+  return(df)
+}
+
+calculate_pct_for_each_category <- function(tempDf){
+  tempDf <- dcast(tempDf, Region_Name~Item)   # reshape it like a table
+  
+  rownames(tempDf) <- tempDf[,1]    # get the row names
+  tempDf <- tempDf[,-1]     # set the row names
+  
+  pctDf <- cbind(prop.table(as.matrix(tempDf), margin = 1))
+  return(pctDf)
+}
+
+convert_year_to_integer <- function(df){
+  tempYear <- df['variable']    # extract the "year" column
+  tempYear <- df[,2]
+  charYear <- as.character(tempYear)    # a list of years as charactors
+  intYear <- c()    # initialize an empty list for year as integer
+  for (e in charYear){
+    e <- substring(e, 2, 5)   # remove the 'Y'
+    intYear <- c(intYear, e)
+  }
+  intYear <- as.integer(intYear)    # convert year to integer
+  return(intYear)
+}
+```
+
+
+
+###  Divergent Difference
+```{r sum_by_region, echo=FALSE, message=FALSE, warnings=FALSE, fig.width=10, fig.height= 6}
+sum_by_region <- aggregate(. ~ Region_Name, expenditure, sum)   # sum by region
+sum_by_region <- subset(sum_by_region, select=-c(Item))  # remove unused columns
+sum_by_region <- melt(sum_by_region, id=c("Region_Name"))   # reshape the dataframe
+
+year <- convert_year_to_integer(sum_by_region)
+
+sum_by_region$intTime = year
+sum_by_region <- subset(sum_by_region, select=c(Region_Name, intTime, value))
+
+ggplot(sum_by_region, aes(intTime,value)) + 
+  geom_line(aes(colour = Region_Name)) +
+  scale_x_continuous(breaks = seq(1991, 2014, by=1), limits=c(1991,2014)) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1)) +
+  scale_y_continuous(labels = scales::dollar) +
+  xlab("Time (Year)") +
+  ylab("Total Expenditure (in US Dollar)") +
+  ggtitle("Plot 1: Aggregated Healthcare Expenditures by Region, 1991-2014") +
+  scale_fill_discrete(name = "Region")
+```
+
+Plot 1 shows the total expenditure by region over year. The total expenditure was calculated by summing up expenditures for each category together. In the year 1991, there were three levels of expenditures: New England and Mideast region had the highest total healthcare expenditures; Plains, Great Lakes, Southeast, and Far West had the second highest health care expenditures, Southwest and Rocky Mountains had the lowest healthcare expenditures. But as time went by, in the year 2014, the total healthcare expenditure of each region became more divergent while the rank of their healthcare expenditure remained the roughly the same. There were five levels: New England had the highest expenditure, Mideast had the second, Plains and Great Lakes had the third, Far West and Southeast had the fourth, and Southwest and the Rocky Mountains had the lowest total expenditure. 
+
+```{r table1, echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
+library(knitr)
+Year <- c('1991', '2014', 'Growth Rate')
+GDP_per_Capita <- c('$ 24,405', '$ 54,598', '123.7%')
+Average_Healthcare_Expenditure <- c('$ 5,306.5', '$ 16,310.4', '207.4%')
+Proportion_to_GDP <- c('21.7%', '30.0%', '8.3%')
+Gap <- c('$ 1,632', '$ 6,611', '74.0%')
+df <- data.frame(Year, GDP_per_Capita, Average_Healthcare_Expenditure, Proportion_to_GDP, Gap)
+kable(df, caption = "the GDP per capita, average healthcare expenditure per capita, the proportion of healthcare expenditure to GDP, and the gap between the highest and the lowest healthcare expenditure in year 1991 and 2014 with their growth rate in those 24 years")
+```
+
+Table 1 showed the GDP per capita, the average healthcare expenditure, the percentage of the healthcare expenditure in GDP per capita and the gap between the highest expenditure and the lowest expenditure in the year 1991 and 2014 with their growth rate respectively. Even though the average healthcare expenditure grows way faster than the GDP per capita, the percentage of the average healthcare expenditure in GDP per capita remained relatively steady. The aggregated growth rate is 8.3%, which means an average 0.36% growth rate per year. 
+
+The change in the difference between the highest healthcare expenditure and the lowest healthcare expenditure in those 24 years was very interesting. According to the time series plot, all the healthcare expenditures were growing in all regions, but in different growth rate, which leads to a more and more divergent difference. For example, New England and Mideast had about the same healthcare expenditure in 1991. However started from the year 2000, the healthcare expenditure in New England started to grow faster than that in Mideast, and at the end of the year 2014, the healthcare expenditure per capita in New England had been 1,498 US dollar higher than that in Mideast. While New England grew faster than all other states, some of the other states remained relatively steady growth rates. In the further analysis the factor behind the divergent healthcare expenditure situation, Aggregated GDP by state and population by state are taken into account.
+
+![Percent Change in Real GDP by State, 2013. (2014, June 10). Retrieved February 8, 2018, from https://bea.gov/newsreleases/regional/gdp_state/gsp_newsrelease.htm](/Users/pollyzhang/Desktop/Change_GDP_State.png){width=550px}
+
+![GDP by State, 2014.(n.d.).Retrieved February 8, 2018, from https://bea.gov/newsreleases/regional/maps](/Users/pollyzhang/Desktop/GDP_State.png){width=550px}
+
+![US Population by State, 2014.(n.d.). Retrieved February 8, 2018, from https://www.census.gov/2010census/popmap/](/Users/pollyzhang/Desktop/US_Population.png){width=550px}
+
+Figure 1 is the percent change in aggregated GDP by state in 2013, and figure 2 is the aggregated GDP by state in 2014. GDP is one of the primary indicators used to gauge the health of a country's economy. The aggregated GDP represents the total dollar value of all goods and services produced over a specific time period, often referred to as the size of the economy. The percent change in GDP is an also indicator of the current economy's performance comparing to that in an earlier time. The percentage change can also play the role as a predictor of the future economic growth. From the figure 1, the Rocky Mountains, and Plains had the highest GDP growth rate. But from the figure 2, even though Mideast, Great Lakes, and Southeast had slowlier GDP growth rate, their aggregated GDPs were way larger than those regions with faster growth rates. Far West and Southwest both had high aggregated GDP and high growth rate. New England region had both low aggregated GDP and low growth rate, while it has the most healthcare expenditure and the one of the fastest growth rate in healthcare expenditure, which is very interested and more analysis are definitely needed. 
+
+The aggregated healthcare expenditure by region in the year 2014 in descending order was New England, Mideast, Great Lakes, Plains, Far West, Southeast, Southwest, and Rocky Mountains. The order did not correspond to the economic performance of each region, so the population is also taken into account.
+
+Figure 3 is the US population by state in the year 2014. It shows that those regions with high aggregated GDPs were also those most populated regions, which means the GDP per capita there may not be the highest as well and. That could explain why those regions with better performance, like Southeast and Southeast, did not have relatively higher healthcare expenditure, while New England, which did not show strong economic growth had the highest healthcare expenditure. 
+
+Also, since the sources of funding includes Medicare, a federal program that provides health coverage for 65 or older people, or people with severe disability, and Medicaid, a state and federal program that provides health coverage if people with very low incomes, social security systems, healthcare policymaking, and gap between the rich and the poor should also contribute to the healthcare expenditure. So another reason that New England had the highest healthcare expenditure per capita could be the higher percentage of people that are eligible for Medicare and Medicaid. So even though they were not having higher economic status, they could still afford healthcare and even need more healthcare. In other words, regions with better economic performance tend to have higher healthcare expenditure, but healthcare expenditure is not necessarily strongly correlated with economic performance, other factors can also impact the healthcare expenditure. 
+
+***
+### Change in Growth Rate
+```{r growth_by_region, echo=FALSE, message=FALSE, warnings=FALSE, fig.width=10, fig.height= 6}
+region_by_time <- dcast(sum_by_region, intTime~Region_Name)  # reshape the dataframe
+
+regionGrowthRate <- region_by_time   # create a new dataframe with the same shape
+
+regionGrowthRate <- calculate_growth_rate(regionGrowthRate)
+
+regionGrowthRate<- melt(regionGrowthRate[2:nrow(regionGrowthRate),], id=c("intTime"))   # reshape the dataframe
+
+ggplot(regionGrowthRate, aes(intTime,value)) +         # plot
+  geom_line(aes(colour = variable)) +
+  geom_point(aes(colour = variable)) +
+  facet_grid(variable ~ .) +
+  scale_x_continuous(breaks = seq(1991, 2014, by=1), limits=c(1991,2014)) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1)) +
+  scale_y_continuous(labels = scales::percent) + 
+  xlab("Time (Year)") +
+  ylab("Annual Growth Rate (%)") +
+  ggtitle("Plot 2: Annual Growth Rate over Year") +
+  scale_fill_discrete(name = "Region")
+```
+
+Besides the divergent healthcare expenditure difference, from plot 1, another interesting thing to be noticed is that before the year 2000, the aggregated healthcare expenditure grew slow but steady for all regions. At the year 2000, the healthcare expenditure started growing faster than before for all regions, and the growth rate remained steady again. In the year 2010, the aggregated healthcare expenditure for most regions started growing more slowly, and that was most obvious for New England region. The same trend can also be noticed in plot 2. So what happened in the year 2000 and 2010 that impacted the growth rates?
+
+For the increase growth rate in 2000, that could be a result of the increasing health insurance coverage and the expansion of Medicare and Medicaid. An estimated 14.0 percent of the population was without health insurance coverage during the entire year in 2000, down from 14.3 percent in 1999. Similarly, the number of people without health insurance coverage declined in 2000, to 38.7 million, down 0.6 million from the previous year (Mills, 2001). Also, The number and percentage of people covered by employment-based health insurance rose significantly in 2000, driving the overall increase in health insurance coverage.
+
+For the significant decrease in the growth rate in 2010, it should be the reflection of the impact of the Great Recession and the financial crisis in 2008. Along with high unemployment, continuing decline in home values and increase in personal bankruptcies, federal debt, and inflation also caused high unemployment and low consumer confidence. As the result of shrunk consumption, the growth rate of all industry will be slowed down. 
+
+
+***
+### Change in Proportions
+Besides the aggregated healthcare expenditure by region over year, the percentage of each service occupied in the total healthcare expenditure is also one thing to be analyzed. The following plot shows the percentage of each healthcare service category by region in the year 1991 and 2014. 
+
+```{r percentage, echo=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height= 8}
+## Percentage of each category for each region
+# 1991
+temp <- subset(expenditure, select=c(Item, Region_Name, Y1991))
+pct1991 <- calculate_pct_for_each_category(temp)
+# 2000
+temp <- subset(expenditure, select=c(Item, Region_Name, Y2000))
+pct2000 <- calculate_pct_for_each_category(temp)
+# 2009
+temp <- subset(expenditure, select=c(Item, Region_Name, Y2009))
+pct2009 <- calculate_pct_for_each_category(temp)
+# 2014
+temp <- subset(expenditure, select=c(Item, Region_Name, Y2014))
+pct2014 <- calculate_pct_for_each_category(temp)
+# combine three dataframes 
+pct1991 <- melt(pct1991, id=c(rownames(pct1991)))
+colnames(pct1991)[3] <- 'Y1991'
+pct2000 <- melt(pct2000, id=c(rownames(pct2000)))
+colnames(pct2000)[3] <- 'Y2000'
+pct2009 <- melt(pct2009, id=c(rownames(pct2009)))
+colnames(pct2009)[3] <- 'Y2009'
+pct2014 <- melt(pct2014, id=c(rownames(pct2014)))
+colnames(pct2014)[3] <- 'Y2014'
+
+pctExpenditure <- join_all(list(pct1991,pct2000,pct2009,pct2014), by=c('Var1','Var2'), type = 'full')
+colnames(pctExpenditure)[1] <- 'Region_Name'
+colnames(pctExpenditure)[2] <- 'Item'
+
+pctExpenditureTemp <- subset(pctExpenditure, select=-c(Y2000,Y2009))
+
+pctExpenditureNew <- melt(pctExpenditureTemp, id=c("Item","Region_Name"))   # reshape the dataframe
+#pctExpenditure['Year'] <- convert_year_to_integer(pctExpenditure)
+colnames(pctExpenditureNew)[3] <- 'Year'
+colnames(pctExpenditureNew)[4] <- 'Percentage'
+
+ggplot(pctExpenditureNew, aes(x=Region_Name, y=Percentage)) + 
+  geom_bar(aes(fill = Item), stat = "identity") +
+  facet_grid(Year ~ .) +
+  scale_y_continuous(labels = scales::percent) +
+  coord_flip() +
+  scale_fill_brewer(palette="Paired") + 
+  xlab("Region") +
+  ylab("Percentage") +
+  ggtitle("Plot 3: Percentage of Each Category by Region over Year")
+```
+
+```{r table2, echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
+library(knitr)
+meanPercentage <- dcast(pctExpenditureNew[,-2],Item~Year,mean)
+meanPercentage[,2] <- round(meanPercentage[,2]*100,3)
+meanPercentage[,3] <- round(meanPercentage[,3]*100,3)
+colnames(meanPercentage) <- c("Service Category", "1991 (%)", "2014 (%)")
+meanPercentage["Change in %"] <- meanPercentage[,3] - meanPercentage[,2]
+kable(meanPercentage, caption = "The mean of percentages for each service category occupied in annual total healthcare expenditure in year 1991 and 2014")
+```
+
+From plot 3, no significant difference in patterns was noticed in the year 1991 and 2014. In those 24 years, the distribution of healthcare expenditure among service categories remained roughly the same for all regions. From the stacked bar chart and the table above, in those 24 years, the top three categories that people spend most of their money on remained the same: Personal Health Care (about 50%), Hospital Care (about 20%), and Physician & Clinical Services (about 12%). The two categories that had the most significant change in percentage were Prescription Drugs & Other Non-durable Medical Products (increased 1,701%), and Physician & Clinical Services (dropped 1.429%). 
+
+From the table 2, while the percentage of some categories remained stable (Personal Health Care for example), the percentage of other categories did change slightly or significantly. To further study how the percentage of each category changed in those 24 years, the changes of the percentages of each service category between 2000 and 1991, 2009 and 2000, and 2014 and 2019 were calculated by region. The following showed the results of the calculation.
+
+
+```{r difference, echo=FALSE, message=FALSE, warning=FALSE, fig.width=10, fig.height= 8}
+## Pertentage change
+difference <- pctExpenditure
+difference[,3] <- 0
+difference[,4] <- pctExpenditure[,4]-pctExpenditure[,3] # 2000-1991
+difference[,5] <- pctExpenditure[,5]-pctExpenditure[,4] # 2009-2000
+difference[,6] <- pctExpenditure[,6]-pctExpenditure[,5] # 2014-2009
+difference <- subset(difference, select=-c(Y1991))
+
+differenceNew <- melt(difference, id=c("Item","Region_Name"))   # reshape the dataframe
+
+positiveDat <- subset(differenceNew, value>= 0)
+negativeDat <- subset(differenceNew,value < 0)
+
+ggplot() + 
+  geom_bar(data=positiveDat, aes(x=variable, y=value),stat = "identity") +
+  geom_bar(data=negativeDat, aes(x=variable, y=value),stat = "identity") +
+  facet_grid(Region_Name ~ Item) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1)) +
+  scale_y_continuous(labels = scales::percent) +
+  xlab("Year") +
+  ylab("Change in Percentage") +
+  ggtitle("Plot 4: Change in Percentage over Year for each Cagegory and Region")
+```
+
+From plot 4, two categories, Hospital Care, and Prescription Drugs & Other Non-durable Medical Products had the most significant changes among all other categories over all regions. For the Hospital Care, the percentage dropped over 2% from 1991 to 2000, then it slowly increased back. So even though from the table 2, the net percentage change in Hospital Care was small from 1991 to 2014, there were significant fluctuations during those 24 years compared to other categories. The percentage of Prescription Drugs & Other Non-durable Medical Products grown significantly from 1991 to 2000 for all regions, and keep slowly growing up after that.
+
+For the Physician & Clinical Services, the change in percentage varied from regions to regions. In New England and Mideast, it remained relatively stable. But in Far West, Plain, and the Rocky Mountains, it dropped significantly over 24 years. The interesting thing is that New England and Mideast are close to each other, and Far West, Plain, and the Rocky Mountains are also geographically close. So regions nearby where they may have similar economic development status may also have a similar changing trend in healthcare expenditure spending.
+
+When George W. Bush (2001-2009) was elected the 43rd President of the United States, he wanted to update Medicare to include prescription drug coverage. This idea eventually turned into the Medicare Prescription Drug, Improvement and Modernization Act of 2003 (sometimes called Medicare Part D) (Griffin, 2017). That healthcare policy could be the reason of increase expenditures on prescription drugs and other non-durable medical products.
+
+***
+## References
+
+Centers of Medicare & Medicaid Services (2017, June). Health Expenditures by State of Residence, 1991-2014. Retrieved February 8, 2018, from https://www.cms.gov/Research-Statistics-Data-and-Systems/Statistics-Trends-and-Reports/NationalHealthExpendData/NationalHealthAccountsStateHealthAccountsResidence.html
+
+Amadeo, K. (2017, October 26). The Rising Cost of Health Care by Year and Its Causes. Retrieved February 8, 2018, from https://www.thebalance.com/causes-of-rising-healthcare-costs-4064878
+
+Griffin, J. (2017, May 7). The History of Healthcare in America. Retrieved February 8, 2018, from https://www.griffinbenefits.com/employeebenefitsblog/history_of_healthcare
+
+Mills, R. J. (2001, September). Health Insurance Coverage: 2000. Retrieved February 8, 2018, from https://www.census.gov/prod/2001pubs/p60-215.pdf
